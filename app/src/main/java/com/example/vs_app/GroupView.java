@@ -1,8 +1,6 @@
 package com.example.vs_app;
 
 // GroupView.java
-package com.example.momentshare;
-
 import android.os.Bundle;
 import android.widget.ListView;
 import androidx.appcompat.app.AppCompatActivity;

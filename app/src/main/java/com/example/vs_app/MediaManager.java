@@ -11,10 +11,19 @@ import java.util.concurrent.Executors;
 
 public class MediaManager {
     private static final Executor executor = Executors.newSingleThreadExecutor();
+    private static Context applicationContext;  // Application Context speichern
+
+    public static void init(Context context) {
+        applicationContext = context.getApplicationContext();
+    }
+
+    private static File getMediaDirectory() {
+        return applicationContext.getExternalFilesDir(null);
+    }
 
     public static void storeMedia(Context context, ImageCapture imageCapture, String timestamp) {
         File photoFile = new File(
-                context.getExternalFilesDir(null),
+                getMediaDirectory(),  // Nutze getMediaDirectory statt context direkt
                 "Moment_" + timestamp + ".jpg"
         );
 
@@ -27,7 +36,6 @@ public class MediaManager {
                 new ImageCapture.OnImageSavedCallback() {
                     @Override
                     public void onImageSaved(ImageCapture.OutputFileResults outputFileResults) {
-                        // Notify TransferManager about new media
                         TransferManager.getInstance().queueForTransfer(photoFile);
                     }
 
@@ -36,6 +44,13 @@ public class MediaManager {
                         e.printStackTrace();
                     }
                 }
+        );
+    }
+
+    public static File createReceivedFile(String fileName) {
+        return new File(
+                getMediaDirectory(),
+                "Received_" + System.currentTimeMillis() + "_" + fileName
         );
     }
 }

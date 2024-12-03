@@ -1,6 +1,7 @@
 package com.example.vs_app;
 
 // BluetoothController.java
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
@@ -13,7 +14,7 @@ import java.util.UUID;
 
 public class BluetoothController {
     private static final String APP_NAME = "MomentShare";
-    private static final UUID APP_UUID = UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66");
+    public static final UUID APP_UUID = UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66");
 
     private final BluetoothAdapter bluetoothAdapter;
     private final Context context;
@@ -28,8 +29,14 @@ public class BluetoothController {
         this.groupManager = new GroupManager();
     }
 
+    @SuppressLint("MissingPermission")
     public void startDiscovery() {
-        if (bluetoothAdapter != null && !bluetoothAdapter.isDiscovering()) {
+        if (bluetoothAdapter != null) {
+            // Falls bereits eine Suche läuft, diese stoppen
+            if (bluetoothAdapter.isDiscovering()) {
+                bluetoothAdapter.cancelDiscovery();
+            }
+            // Neue Suche starten
             bluetoothAdapter.startDiscovery();
         }
     }
@@ -76,5 +83,9 @@ public class BluetoothController {
 
         // Notify GossipController about new connection
         GossipController.getInstance().initializeTransfer(socket);
+    }
+
+    public BluetoothAdapter getBluetoothAdapter() {
+        return bluetoothAdapter;
     }
 }
