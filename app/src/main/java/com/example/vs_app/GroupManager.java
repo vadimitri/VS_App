@@ -1,17 +1,20 @@
 package com.example.vs_app;
 
-// GroupManager.java
-
 import android.bluetooth.BluetoothDevice;
+import android.content.Context;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class GroupManager {
-    private List<BluetoothDevice> groupMembers;
     private static GroupManager instance;
+    private final Set<BluetoothDevice> groupMembers;
+    private Context context;
 
-    public GroupManager() {
-        groupMembers = new ArrayList<>();
+    private GroupManager() {
+        groupMembers = new HashSet<>();
     }
 
     public static synchronized GroupManager getInstance() {
@@ -21,16 +24,27 @@ public class GroupManager {
         return instance;
     }
 
-    public void addMember(BluetoothDevice device) {
-        if (!groupMembers.contains(device)) {
+    public void initialize(Context context) {
+        this.context = context;
+    }
+
+    public void addGroupMember(BluetoothDevice device) {
+        if (device != null) {
             groupMembers.add(device);
             notifyGroupUpdate();
         }
     }
 
-    public void removeMember(BluetoothDevice device) {
-        if (groupMembers.remove(device)) {
+    public void removeGroupMember(BluetoothDevice device) {
+        if (device != null) {
+            groupMembers.remove(device);
             notifyGroupUpdate();
+        }
+    }
+
+    private void notifyGroupUpdate() {
+        if (context != null) {
+            GossipController.getInstance(context).onGroupUpdate(new ArrayList<>(groupMembers));
         }
     }
 
@@ -38,8 +52,12 @@ public class GroupManager {
         return new ArrayList<>(groupMembers);
     }
 
-    private void notifyGroupUpdate() {
-        // Notify observers about group changes
-        GossipController.getInstance().onGroupUpdate(groupMembers);
+    public boolean isInGroup(BluetoothDevice device) {
+        return groupMembers.contains(device);
+    }
+
+    public void clearGroup() {
+        groupMembers.clear();
+        notifyGroupUpdate();
     }
 }
