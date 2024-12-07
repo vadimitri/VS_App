@@ -3,21 +3,21 @@ package com.example.vs_app;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class GroupManager {
     private static final String TAG = "GroupManager";
     private static GroupManager instance;
     private final List<BluetoothDevice> groupDevices;
     private final List<BluetoothSocket> connectedSockets;
-    private final TransferManager transferManager;
 
     private GroupManager() {
         groupDevices = new ArrayList<>();
         connectedSockets = new ArrayList<>();
-        transferManager = new TransferManager();
     }
 
     public static synchronized GroupManager getInstance() {
@@ -30,40 +30,30 @@ public class GroupManager {
     public void addDeviceToGroup(BluetoothDevice device) {
         if (!groupDevices.contains(device)) {
             groupDevices.add(device);
-            connectToDevice(device);
+            Log.d(TAG, "Added device to group: " + device.getName());
+            // TODO: Implement connection logic here
         }
     }
 
-    private void connectToDevice(BluetoothDevice device) {
-        try {
-            BluetoothSocket socket = device.createRfcommSocketToServiceRecord(BluetoothController.APP_UUID);
-            connectedSockets.add(socket);
-            transferManager.addSocket(socket);
-            socket.connect();
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to connect to device: " + e.getMessage());
-        }
-    }
-
-    public void sendPhotoToGroup(byte[] photoData) {
-        for (BluetoothSocket socket : connectedSockets) {
-            transferManager.sendPhoto(socket, photoData);
-        }
+    public void removeDeviceFromGroup(BluetoothDevice device) {
+        groupDevices.remove(device);
+        Log.d(TAG, "Removed device from group: " + device.getName());
     }
 
     public List<BluetoothDevice> getGroupDevices() {
         return new ArrayList<>(groupDevices);
     }
 
-    public void clear() {
-        for (BluetoothSocket socket : connectedSockets) {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing socket: " + e.getMessage());
-            }
-        }
-        connectedSockets.clear();
+    public boolean isDeviceInGroup(BluetoothDevice device) {
+        return groupDevices.contains(device);
+    }
+
+    public void clearGroup() {
         groupDevices.clear();
+        Log.d(TAG, "Cleared all devices from group");
+    }
+
+    public int getGroupSize() {
+        return groupDevices.size();
     }
 }
