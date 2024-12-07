@@ -1,111 +1,80 @@
 package com.example.vs_app;
 
-// PermissionHandler.java
-
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class PermissionHandler {
     private static final int PERMISSION_REQUEST_CODE = 123;
-
-    // Benötigte Berechtigungen für verschiedene Android Versionen
-    private static final String[] PERMISSIONS_ANDROID_12_PLUS = {
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_ADVERTISE,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.CAMERA,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.READ_EXTERNAL_STORAGE   // Für Datei-Lesen
-
-    };
-
-    private static final String[] PERMISSIONS_ANDROID_11_AND_BELOW = {
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.CAMERA,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.READ_EXTERNAL_STORAGE   // Für Datei-Lesen
-
-    };
-
-    public interface PermissionCallback {
-        void onPermissionsGranted();
-        void onPermissionsDenied(List<String> deniedPermissions);
-    }
-
+    private final Context context;
     private final Activity activity;
-    private PermissionCallback callback;
 
     public PermissionHandler(Activity activity) {
         this.activity = activity;
+        this.context = activity;
     }
 
-    public void checkAndRequestPermissions(PermissionCallback callback) {
-        this.callback = callback;
-        String[] requiredPermissions = getRequiredPermissions();
-        List<String> missingPermissions = new ArrayList<>();
+    public boolean checkAndRequestPermissions() {
+        List<String> permissionsNeeded = new ArrayList<>();
 
-        // Prüfe jede benötigte Berechtigung
-        for (String permission : requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(activity, permission)
-                    != PackageManager.PERMISSION_GRANTED) {
-                missingPermissions.add(permission);
-            }
-        }
-
-        if (missingPermissions.isEmpty()) {
-            // Alle Berechtigungen bereits vorhanden
-            callback.onPermissionsGranted();
-        } else {
-            // Fordere fehlende Berechtigungen an
-            ActivityCompat.requestPermissions(
-                    activity,
-                    missingPermissions.toArray(new String[0]),
-                    PERMISSION_REQUEST_CODE
-            );
-        }
-    }
-
-    private String[] getRequiredPermissions() {
+        // Bluetooth Berechtigungen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return PERMISSIONS_ANDROID_12_PLUS;
+            // Android 12+ Berechtigungen
+            checkPermission(permissionsNeeded, Manifest.permission.BLUETOOTH_SCAN);
+            checkPermission(permissionsNeeded, Manifest.permission.BLUETOOTH_ADVERTISE);
+            checkPermission(permissionsNeeded, Manifest.permission.BLUETOOTH_CONNECT);
         } else {
-            return PERMISSIONS_ANDROID_11_AND_BELOW;
+            // Ältere Android Versionen
+            checkPermission(permissionsNeeded, Manifest.permission.BLUETOOTH);
+            checkPermission(permissionsNeeded, Manifest.permission.BLUETOOTH_ADMIN);
+        }
+
+        // Standort Berechtigungen
+        checkPermission(permissionsNeeded, Manifest.permission.ACCESS_FINE_LOCATION);
+        checkPermission(permissionsNeeded, Manifest.permission.ACCESS_COARSE_LOCATION);
+
+        // Kamera Berechtigungen
+        checkPermission(permissionsNeeded, Manifest.permission.CAMERA);
+
+        // Speicher Berechtigungen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            checkPermission(permissionsNeeded, Manifest.permission.MANAGE_EXTERNAL_STORAGE);
+        } else {
+            checkPermission(permissionsNeeded, Manifest.permission.READ_EXTERNAL_STORAGE);
+            checkPermission(permissionsNeeded, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+
+        if (!permissionsNeeded.isEmpty()) {
+            ActivityCompat.requestPermissions(activity,
+                    permissionsNeeded.toArray(new String[0]),
+                    PERMISSION_REQUEST_CODE);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void checkPermission(List<String> permissionsNeeded, String permission) {
+        if (ContextCompat.checkSelfPermission(context, permission)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissionsNeeded.add(permission);
         }
     }
 
-    public void onRequestPermissionsResult(int requestCode,
-                                           String[] permissions,
-                                           int[] grantResults) {
+    public boolean handlePermissionResult(int requestCode, String[] permissions,
+                                        int[] grantResults) {
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            List<String> deniedPermissions = new ArrayList<>();
-
-            for (int i = 0; i < permissions.length; i++) {
-                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-                    deniedPermissions.add(permissions[i]);
-                }
-            }
-
-            if (deniedPermissions.isEmpty()) {
-                callback.onPermissionsGranted();
-            } else {
-                callback.onPermissionsDenied(deniedPermissions);
-            }
+            return grantResults.length > 0 &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED;
         }
-    }
-
-    // Hilfsmethode zum Prüfen einzelner Berechtigungen
-    public static boolean hasPermission(Activity activity, String permission) {
-        return ContextCompat.checkSelfPermission(activity, permission)
-                == PackageManager.PERMISSION_GRANTED;
+        return false;
     }
 }
-
