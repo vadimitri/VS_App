@@ -2,23 +2,25 @@ package com.example.vs_app;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.util.Log;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GroupManager {
     private static final String TAG = "GroupManager";
     private static GroupManager instance;
-    private final List<BluetoothDevice> groupDevices;
-    private final List<BluetoothSocket> connectedSockets;
+    private final CopyOnWriteArrayList<BluetoothDevice> groupDevices;
+    private final CopyOnWriteArrayList<BluetoothSocket> connectedSockets;
     private final TransferManager transferManager;
+    private Context applicationContext;
+    private boolean isInitialized = false;
 
     private GroupManager() {
-        groupDevices = new ArrayList<>();
-        connectedSockets = new ArrayList<>();
+        groupDevices = new CopyOnWriteArrayList<>();
+        connectedSockets = new CopyOnWriteArrayList<>();
         transferManager = TransferManager.getInstance();
     }
 
@@ -29,11 +31,21 @@ public class GroupManager {
         return instance;
     }
 
+    public void initialize(Context context) {
+        if (!isInitialized) {
+            this.applicationContext = context.getApplicationContext();
+            transferManager.initialize(applicationContext);
+            isInitialized = true;
+            Log.d(TAG, "GroupManager initialized");
+        }
+    }
+
     public void addDeviceToGroup(BluetoothDevice device) {
+        checkInitialization();
         if (!groupDevices.contains(device)) {
             groupDevices.add(device);
-            Log.d(TAG, "Added device to group: " + device.getName());
             connectToDevice(device);
+            Log.d(TAG, "Added device to group: " + device.getName());
         }
     }
 
@@ -50,46 +62,66 @@ public class GroupManager {
         }
     }
 
-    public void sendPhotoToGroup(byte[] photoData) {
-        for (BluetoothSocket socket : new ArrayList<>(connectedSockets)) {
-            try {
-                transferManager.sendPhoto(socket, photoData);
-            } catch (Exception e) {
-                Log.e(TAG, "Error sending photo to socket: " + e.getMessage());
-                removeDevice(socket);
-            }
-        }
-    }
-
-    private void removeDevice(BluetoothSocket socket) {
-        connectedSockets.remove(socket);
-        transferManager.removeSocket(socket);
-        for (BluetoothDevice device : new ArrayList<>(groupDevices)) {
+    public void removeDevice(BluetoothDevice device) {
+        checkInitialization();
+        groupDevices.remove(device);
+        for (BluetoothSocket socket : connectedSockets) {
             try {
                 if (socket.getRemoteDevice().equals(device)) {
-                    groupDevices.remove(device);
-                    break;
+                    transferManager.removeSocket(socket);
+                    socket.close();
+                    connectedSockets.remove(socket);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error removing device: " + e.getMessage());
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing socket: " + e.getMessage());
             }
         }
     }
 
     public List<BluetoothDevice> getGroupDevices() {
+        checkInitialization();
         return new ArrayList<>(groupDevices);
     }
 
-    public void clearGroup() {
-        for (BluetoothSocket socket : new ArrayList<>(connectedSockets)) {
-            removeDevice(socket);
-        }
-        groupDevices.clear();
-        connectedSockets.clear();
-        Log.d(TAG, "Cleared all devices from group");
+    public int getGroupSize() {
+        checkInitialization();
+        return groupDevices.size();
     }
 
-    public int getGroupSize() {
-        return groupDevices.size();
+    public void sendPhotoToGroup(byte[] photoData) {
+        checkInitialization();
+        for (BluetoothSocket socket : connectedSockets) {
+            try {
+                transferManager.sendPhoto(socket, photoData);
+            } catch (Exception e) {
+                Log.e(TAG, "Error sending photo: " + e.getMessage());
+                try {
+                    socket.close();
+                } catch (IOException closeError) {
+                    Log.e(TAG, "Error closing socket: " + closeError.getMessage());
+                }
+                connectedSockets.remove(socket);
+            }
+        }
+    }
+
+    private void checkInitialization() {
+        if (!isInitialized) {
+            throw new IllegalStateException("GroupManager must be initialized before use");
+        }
+    }
+
+    public void cleanup() {
+        for (BluetoothSocket socket : connectedSockets) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing socket during cleanup: " + e.getMessage());
+            }
+        }
+        connectedSockets.clear();
+        groupDevices.clear();
+        transferManager.cleanup();
+        isInitialized = false;
     }
 }
