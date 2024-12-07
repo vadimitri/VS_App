@@ -10,12 +10,12 @@ import androidx.camera.core.ImageCaptureException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MediaManager {
     private static final String TAG = "MediaManager";
-    private static final Executor executor = Executors.newSingleThreadExecutor();
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static Context applicationContext;
     private static GroupManager groupManager;
     
@@ -97,6 +97,8 @@ public class MediaManager {
     }
 
     public static void cleanup() {
-        executor.shutdown();
+        if (!executor.isShutdown()) {
+            executor.shutdown();
+        }
     }
 }
