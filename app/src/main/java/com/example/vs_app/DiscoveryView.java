@@ -90,6 +90,47 @@ public class DiscoveryView extends AppCompatActivity {
         bluetoothController.makeDiscoverable();
     }
 
+    private void checkPermissionsAndStartDiscovery() {
+        // Überprüfe zuerst Bluetooth
+        if (bluetoothController.getBluetoothAdapter() == null) {
+            statusTextView.setText("Fehler: Bluetooth nicht verfügbar");
+            return;
+        }
+
+        if (!bluetoothController.getBluetoothAdapter().isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            return;
+        }
+
+        // Überprüfe und fordere Berechtigungen an
+        ArrayList<String> permissions = new ArrayList<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN);
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
+            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE);
+        } else {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+
+        boolean allPermissionsGranted = true;
+        for (String permission : permissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                allPermissionsGranted = false;
+                break;
+            }
+        }
+
+        if (!allPermissionsGranted) {
+            Log.d(TAG, "Requesting permissions: " + permissions);
+            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+        } else {
+            startDiscovery();
+        }
+    }
+
     private void updateDeviceList() {
         runOnUiThread(() -> {
             Log.d(TAG, "Updating device list with " + discoveredDevices.size() + " devices");
@@ -142,5 +183,20 @@ public class DiscoveryView extends AppCompatActivity {
         statusTextView.setText("Starte Suche...");
         Log.d(TAG, "Starting discovery");
         bluetoothController.startDiscovery();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.discovery_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_refresh) {
+            checkPermissionsAndStartDiscovery();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
