@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -19,6 +20,7 @@ public class BluetoothController {
     private static final String APP_NAME = "MomentShare";
     public static final UUID APP_UUID = UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66");
     private static final int CONNECTION_TIMEOUT = 10000; // 10 seconds
+    private static final int DISCOVERABLE_DURATION = 300; // 5 minutes
 
     private final BluetoothAdapter bluetoothAdapter;
     private final Context context;
@@ -46,17 +48,21 @@ public class BluetoothController {
         }
     }
 
-    public BluetoothController(Context context, BluetoothCallback callback) {
-        this(context);
-        this.bluetoothCallback = callback;
-
-        if (bluetoothAdapter == null && bluetoothCallback != null) {
-            mainHandler.post(() -> bluetoothCallback.onBluetoothNotAvailable());
+    @SuppressLint("MissingPermission")
+    public void makeDiscoverable() {
+        if (bluetoothAdapter != null) {
+            Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+            discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVERABLE_DURATION);
+            discoverableIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(discoverableIntent);
         }
     }
 
-    public BluetoothAdapter getBluetoothAdapter() {
-        return bluetoothAdapter;
+    @SuppressLint("MissingPermission")
+    public void setDeviceName(String name) {
+        if (bluetoothAdapter != null) {
+            bluetoothAdapter.setName(name);
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -77,5 +83,9 @@ public class BluetoothController {
         if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
             bluetoothAdapter.cancelDiscovery();
         }
+    }
+
+    public BluetoothAdapter getBluetoothAdapter() {
+        return bluetoothAdapter;
     }
 }
