@@ -44,7 +44,7 @@ public class GroupManager {
 
     private void notifyGroupUpdate() {
         if (context != null) {
-            GossipController.getInstance(context).onGroupUpdate(new ArrayList<>(groupMembers));
+            GossipController.getInstance(context).updateGroupMembers(new ArrayList<>(groupMembers));
         }
     }
 
