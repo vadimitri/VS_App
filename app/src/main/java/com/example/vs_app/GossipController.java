@@ -12,7 +12,7 @@ public class GossipController {
 
     private GossipController(Context context) {
         this.context = context;
-        this.transferManager = TransferManager.getInstance();
+        transferManager = TransferManager.getInstance();
     }
 
     public static synchronized GossipController getInstance(Context context) {
@@ -27,6 +27,7 @@ public class GossipController {
     }
 
     public void updateGroupMembers(List<BluetoothDevice> members) {
+        // Update transfer status for all members
         for (BluetoothDevice device : members) {
             transferManager.updateTransferStatus(device);
         }
