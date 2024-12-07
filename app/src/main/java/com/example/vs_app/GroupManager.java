@@ -1,19 +1,23 @@
 package com.example.vs_app;
 
 import android.bluetooth.BluetoothDevice;
-import android.content.Context;
+import android.bluetooth.BluetoothSocket;
+import android.util.Log;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class GroupManager {
+    private static final String TAG = "GroupManager";
     private static GroupManager instance;
-    private final Set<BluetoothDevice> groupMembers;
-    private Context context;
+    private final List<BluetoothDevice> groupDevices;
+    private final List<BluetoothSocket> connectedSockets;
+    private final TransferManager transferManager;
 
     private GroupManager() {
-        groupMembers = new HashSet<>();
+        groupDevices = new ArrayList<>();
+        connectedSockets = new ArrayList<>();
+        transferManager = new TransferManager();
     }
 
     public static synchronized GroupManager getInstance() {
@@ -23,40 +27,43 @@ public class GroupManager {
         return instance;
     }
 
-    public void initialize(Context context) {
-        this.context = context;
-    }
-
-    public void addGroupMember(BluetoothDevice device) {
-        if (device != null) {
-            groupMembers.add(device);
-            updateGossipController();
+    public void addDeviceToGroup(BluetoothDevice device) {
+        if (!groupDevices.contains(device)) {
+            groupDevices.add(device);
+            connectToDevice(device);
         }
     }
 
-    public void removeGroupMember(BluetoothDevice device) {
-        if (device != null) {
-            groupMembers.remove(device);
-            updateGossipController();
+    private void connectToDevice(BluetoothDevice device) {
+        try {
+            BluetoothSocket socket = device.createRfcommSocketToServiceRecord(BluetoothController.APP_UUID);
+            connectedSockets.add(socket);
+            transferManager.addSocket(socket);
+            socket.connect();
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to connect to device: " + e.getMessage());
         }
     }
 
-    private void updateGossipController() {
-        if (context != null) {
-            GossipController.getInstance(context).updateGroupMembers(new ArrayList<>(groupMembers));
+    public void sendPhotoToGroup(byte[] photoData) {
+        for (BluetoothSocket socket : connectedSockets) {
+            transferManager.sendPhoto(socket, photoData);
         }
     }
 
-    public List<BluetoothDevice> getGroupMembers() {
-        return new ArrayList<>(groupMembers);
+    public List<BluetoothDevice> getGroupDevices() {
+        return new ArrayList<>(groupDevices);
     }
 
-    public boolean isInGroup(BluetoothDevice device) {
-        return groupMembers.contains(device);
-    }
-
-    public void clearGroup() {
-        groupMembers.clear();
-        updateGossipController();
+    public void clear() {
+        for (BluetoothSocket socket : connectedSockets) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing socket: " + e.getMessage());
+            }
+        }
+        connectedSockets.clear();
+        groupDevices.clear();
     }
 }
