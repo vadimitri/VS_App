@@ -59,9 +59,20 @@ public class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.Vi
 
         // Add click listener
         holder.itemView.setOnClickListener(v -> {
-            if (deviceName.startsWith("VS_App")) {
-                groupManager.addDeviceToGroup(device);
-                Toast.makeText(context, "Gerät zur Gruppe hinzugefügt: " + deviceName, Toast.LENGTH_SHORT).show();
+            if (deviceName.equals("Berechtigung fehlt")) {
+                if (context instanceof DiscoveryView) {
+                    ((DiscoveryView) context).requestBluetoothPermissions();
+                }
+                return;
+            }
+
+            if (deviceName != null && deviceName.startsWith("VS_App")) {
+                if (groupManager != null) {
+                    groupManager.addDeviceToGroup(device);
+                    Toast.makeText(context, "Gerät zur Gruppe hinzugefügt: " + deviceName, Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(context, "Fehler: GroupManager nicht initialisiert", Toast.LENGTH_SHORT).show();
+                }
             } else {
                 Toast.makeText(context, "Nur VS_App Geräte können hinzugefügt werden", Toast.LENGTH_SHORT).show();
             }
