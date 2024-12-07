@@ -1,7 +1,5 @@
 package com.example.vs_app;
 
-// DiscoveryView.java
-
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -10,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
@@ -30,6 +29,7 @@ public class DiscoveryView extends AppCompatActivity {
     private ArrayList<BluetoothDevice> discoveredDevices;
     private DeviceListAdapter adapter;
     private TextView statusTextView;
+    private PermissionHandler permissionHandler;
 
     private final BroadcastReceiver discoveryReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
@@ -60,6 +60,7 @@ public class DiscoveryView extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_discovery);
 
+        permissionHandler = new PermissionHandler(this);
         statusTextView = findViewById(R.id.discovery_status);
         deviceList = findViewById(R.id.device_list);
         deviceList.setLayoutManager(new LinearLayoutManager(this));
@@ -79,19 +80,28 @@ public class DiscoveryView extends AppCompatActivity {
     }
 
     private void checkPermissionsAndStartDiscovery() {
-        // Bluetooth aktiviert?
-        if (bluetoothController.getBluetoothAdapter() == null || !bluetoothController.getBluetoothAdapter().isEnabled()) {
+        // Überprüfe zuerst Bluetooth
+        if (bluetoothController.getBluetoothAdapter() == null) {
+            statusTextView.setText("Fehler: Bluetooth nicht verfügbar");
+            return;
+        }
+
+        if (!bluetoothController.getBluetoothAdapter().isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
             return;
         }
 
-        // Berechtigungen prüfen
-        String[] permissions = new String[]{
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.ACCESS_FINE_LOCATION
-        };
+        // Überprüfe und fordere Berechtigungen an
+        ArrayList<String> permissions = new ArrayList<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN);
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
+        } else {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
 
         boolean allPermissionsGranted = true;
         for (String permission : permissions) {
@@ -102,12 +112,16 @@ public class DiscoveryView extends AppCompatActivity {
         }
 
         if (!allPermissionsGranted) {
-            ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
-            return;
+            Log.d(TAG, "Requesting permissions: " + permissions);
+            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+        } else {
+            startDiscovery();
         }
+    }
 
-        // Discovery starten
+    private void startDiscovery() {
         statusTextView.setText("Starte Suche...");
+        Log.d(TAG, "Starting discovery");
         bluetoothController.startDiscovery();
     }
 
@@ -137,10 +151,11 @@ public class DiscoveryView extends AppCompatActivity {
                 }
             }
             if (allGranted) {
-                checkPermissionsAndStartDiscovery();
+                startDiscovery();
             } else {
-                Toast.makeText(this, "Benötigte Berechtigungen wurden nicht erteilt", Toast.LENGTH_SHORT).show();
                 statusTextView.setText("Fehler: Berechtigungen fehlen");
+                Toast.makeText(this, "Benötigte Berechtigungen wurden nicht erteilt", Toast.LENGTH_LONG).show();
+                Log.e(TAG, "Permissions denied");
             }
         }
     }
@@ -152,8 +167,8 @@ public class DiscoveryView extends AppCompatActivity {
             if (resultCode == RESULT_OK) {
                 checkPermissionsAndStartDiscovery();
             } else {
-                Toast.makeText(this, "Bluetooth muss aktiviert sein", Toast.LENGTH_SHORT).show();
                 statusTextView.setText("Fehler: Bluetooth nicht aktiviert");
+                Toast.makeText(this, "Bluetooth muss aktiviert sein", Toast.LENGTH_LONG).show();
             }
         }
     }
