@@ -1,30 +1,32 @@
 package com.example.vs_app;
 
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.util.Log;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TransferManager {
     private static final String TAG = "TransferManager";
-    private static final int BUFFER_SIZE = 8192; // 8KB buffer
+    private static final int BUFFER_SIZE = 8192;
     private static TransferManager instance;
     private final CopyOnWriteArrayList<BluetoothSocket> sockets;
     private final ExecutorService executor;
-    private volatile boolean isRunning;
+    private final AtomicBoolean isRunning;
+    private Context applicationContext;
+    private boolean isInitialized = false;
 
     private TransferManager() {
         this.sockets = new CopyOnWriteArrayList<>();
         this.executor = Executors.newCachedThreadPool();
-        this.isRunning = true;
+        this.isRunning = new AtomicBoolean(true);
     }
 
     public static synchronized TransferManager getInstance() {
@@ -32,6 +34,13 @@ public class TransferManager {
             instance = new TransferManager();
         }
         return instance;
+    }
+
+    public void initialize(Context context) {
+        if (!isInitialized) {
+            this.applicationContext = context.getApplicationContext();
+            isInitialized = true;
+        }
     }
 
     public void addSocket(BluetoothSocket socket) {
@@ -46,7 +55,7 @@ public class TransferManager {
             byte[] buffer = new byte[BUFFER_SIZE];
             int bytes;
 
-            while (isRunning && socket.isConnected()) {
+            while (isRunning.get() && socket.isConnected()) {
                 try {
                     InputStream inputStream = socket.getInputStream();
                     bytes = inputStream.read(buffer);
@@ -63,48 +72,19 @@ public class TransferManager {
     }
 
     private void handleReceivedData(byte[] buffer, int bytes) {
-        // TODO: Implement protocol for receiving photos
-        // For now, just log the received data
-        Log.d(TAG, "Received " + bytes + " bytes");
+        // Implementiere Protokoll für Foto-Empfang
+        File receivedFile = MediaManager.createReceivedFile("received_photo.jpg");
+        // TODO: Implementiere Datei-Speicherung
     }
 
-    public void queueForTransfer(File file) {
-        if (!file.exists()) {
-            Log.e(TAG, "File does not exist: " + file.getPath());
-            return;
-        }
-
-        executor.execute(() -> {
-            try {
-                byte[] fileData = readFileToBytes(file);
-                for (BluetoothSocket socket : sockets) {
-                    if (socket.isConnected()) {
-                        sendData(socket, fileData);
-                    }
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Error reading file: " + e.getMessage());
-            }
-        });
-    }
-
-    private byte[] readFileToBytes(File file) throws IOException {
-        byte[] fileData = new byte[(int) file.length()];
-        try (FileInputStream fis = new FileInputStream(file)) {
-            fis.read(fileData);
-        }
-        return fileData;
-    }
-
-    private void sendData(BluetoothSocket socket, byte[] data) {
+    public void sendPhoto(BluetoothSocket socket, byte[] photoData) {
         try {
             OutputStream outputStream = socket.getOutputStream();
-            // TODO: Implement proper protocol with headers
-            outputStream.write(data);
+            // TODO: Implementiere Protokoll-Header
+            outputStream.write(photoData);
             outputStream.flush();
-            Log.d(TAG, "Data sent successfully");
         } catch (IOException e) {
-            Log.e(TAG, "Error sending data: " + e.getMessage());
+            Log.e(TAG, "Error sending photo: " + e.getMessage());
             removeSocket(socket);
         }
     }
@@ -118,16 +98,13 @@ public class TransferManager {
         }
     }
 
-    public void shutdown() {
-        isRunning = false;
+    public void cleanup() {
+        isRunning.set(false);
         executor.shutdown();
-        clearSockets();
-    }
-
-    public void clearSockets() {
         for (BluetoothSocket socket : sockets) {
             removeSocket(socket);
         }
         sockets.clear();
+        isInitialized = false;
     }
 }
