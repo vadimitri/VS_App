@@ -1,5 +1,6 @@
 package com.example.vs_app;
 
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.media.MediaScannerConnection;
@@ -23,6 +24,7 @@ public class TransferManager {
     private final ExecutorService executor;
     private final AtomicBoolean isRunning;
     private Context applicationContext;
+    private GossipController gossipController;
     private boolean isInitialized = false;
 
     private TransferManager() {
@@ -41,6 +43,7 @@ public class TransferManager {
     public void initialize(Context context) {
         if (!isInitialized) {
             this.applicationContext = context.getApplicationContext();
+            this.gossipController = GossipController.getInstance(context);
             isInitialized = true;
         }
     }
@@ -50,39 +53,44 @@ public class TransferManager {
         if (!sockets.contains(socket)) {
             sockets.add(socket);
             startListening(socket);
+            updateDeviceStatus(socket.getRemoteDevice(), GossipController.TransferStatus.CONNECTING);
         }
     }
 
     private void startListening(final BluetoothSocket socket) {
         executor.execute(() -> {
-            byte[] header = new byte[HEADER_SIZE];
+            BluetoothDevice device = socket.getRemoteDevice();
+            updateDeviceStatus(device, GossipController.TransferStatus.CONNECTED);
             
+            byte[] header = new byte[HEADER_SIZE];
             while (isRunning.get() && socket.isConnected()) {
                 try {
-                    // Read header first
                     InputStream inputStream = socket.getInputStream();
-                    if (readExactly(inputStream, header) != HEADER_SIZE) {
-                        continue;
-                    }
-
-                    // Parse header
-                    int dataSize = parseHeader(header);
-                    if (dataSize <= 0) {
-                        continue;
-                    }
-
-                    // Read data
-                    byte[] data = new byte[dataSize];
-                    if (readExactly(inputStream, data) == dataSize) {
-                        handleReceivedData(data);
+                    if (readExactly(inputStream, header) == HEADER_SIZE) {
+                        int dataSize = parseHeader(header);
+                        if (dataSize > 0) {
+                            updateDeviceStatus(device, GossipController.TransferStatus.TRANSFERRING);
+                            byte[] data = new byte[dataSize];
+                            if (readExactly(inputStream, data) == dataSize) {
+                                handleReceivedData(data);
+                                updateDeviceStatus(device, GossipController.TransferStatus.COMPLETED);
+                            }
+                        }
                     }
                 } catch (IOException e) {
                     Log.e(TAG, "Error reading from socket: " + e.getMessage());
+                    updateDeviceStatus(device, GossipController.TransferStatus.ERROR);
                     removeSocket(socket);
                     break;
                 }
             }
         });
+    }
+
+    private void updateDeviceStatus(BluetoothDevice device, GossipController.TransferStatus status) {
+        if (gossipController != null) {
+            gossipController.setTransferStatus(device, status);
+        }
     }
 
     private int readExactly(InputStream inputStream, byte[] buffer) throws IOException {
@@ -98,7 +106,6 @@ public class TransferManager {
     }
 
     private int parseHeader(byte[] header) {
-        // Simple header format: 8 bytes for size
         return (header[0] & 0xFF) << 24 | 
                (header[1] & 0xFF) << 16 | 
                (header[2] & 0xFF) << 8  | 
@@ -118,7 +125,6 @@ public class TransferManager {
             fos.write(data);
             fos.flush();
             
-            // Make visible in gallery
             MediaScannerConnection.scanFile(
                 applicationContext,
                 new String[]{receivedFile.getPath()},
@@ -132,21 +138,22 @@ public class TransferManager {
 
     public void sendPhoto(BluetoothSocket socket, byte[] photoData) {
         checkInitialization();
+        BluetoothDevice device = socket.getRemoteDevice();
         try {
-            OutputStream outputStream = socket.getOutputStream();
+            updateDeviceStatus(device, GossipController.TransferStatus.TRANSFERRING);
             
-            // Send header
+            OutputStream outputStream = socket.getOutputStream();
             byte[] header = new byte[HEADER_SIZE];
             createHeader(header, photoData.length);
             outputStream.write(header);
-            
-            // Send photo data
             outputStream.write(photoData);
             outputStream.flush();
             
+            updateDeviceStatus(device, GossipController.TransferStatus.COMPLETED);
             Log.d(TAG, "Photo sent successfully: " + photoData.length + " bytes");
         } catch (IOException e) {
             Log.e(TAG, "Error sending photo: " + e.getMessage());
+            updateDeviceStatus(device, GossipController.TransferStatus.ERROR);
             removeSocket(socket);
         }
     }
@@ -158,6 +165,8 @@ public class TransferManager {
     }
 
     public void removeSocket(BluetoothSocket socket) {
+        BluetoothDevice device = socket.getRemoteDevice();
+        updateDeviceStatus(device, GossipController.TransferStatus.IDLE);
         sockets.remove(socket);
         try {
             socket.close();
