@@ -8,6 +8,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -18,10 +19,12 @@ import java.util.List;
 public class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolder> {
     private final List<BluetoothDevice> devices;
     private final Context context;
+    private final GroupManager groupManager;
 
     public DeviceListAdapter(Context context, List<BluetoothDevice> devices) {
         this.context = context;
         this.devices = devices;
+        this.groupManager = GroupManager.getInstance();
     }
 
     @NonNull
@@ -44,11 +47,25 @@ public class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.Vi
             }
         } else {
             deviceName = "Berechtigung fehlt";
+            // Request permission if missing
+            if (context instanceof DiscoveryView) {
+                ((DiscoveryView) context).requestBluetoothPermissions();
+            }
         }
 
-        // Zeige Name und MAC-Adresse
+        // Show name and MAC address
         holder.text1.setText(deviceName);
         holder.text2.setText(device.getAddress());
+
+        // Add click listener
+        holder.itemView.setOnClickListener(v -> {
+            if (deviceName.startsWith("VS_App")) {
+                groupManager.addDeviceToGroup(device);
+                Toast.makeText(context, "Gerät zur Gruppe hinzugefügt: " + deviceName, Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(context, "Nur VS_App Geräte können hinzugefügt werden", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
