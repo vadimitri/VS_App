@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,26 +22,35 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 
 public class DiscoveryView extends AppCompatActivity {
-
-
+    private static final String TAG = "DiscoveryView";
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int PERMISSION_REQUEST_CODE = 2;
     private BluetoothController bluetoothController;
     private RecyclerView deviceList;
     private ArrayList<BluetoothDevice> discoveredDevices;
     private DeviceListAdapter adapter;
-
+    private TextView statusTextView;
 
     private final BroadcastReceiver discoveryReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+            Log.d(TAG, "Received action: " + action);
+
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (device != null && !discoveredDevices.contains(device)) {
+                    Log.d(TAG, "Found device: " + device.getName() + " [" + device.getAddress() + "]");
                     discoveredDevices.add(device);
-                    // Update UI
                     updateDeviceList();
                 }
+            } else if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
+                Log.d(TAG, "Discovery started");
+                statusTextView.setText("Suche nach Geräten...");
+                discoveredDevices.clear();
+                updateDeviceList();
+            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                Log.d(TAG, "Discovery finished");
+                statusTextView.setText("Suche beendet - " + discoveredDevices.size() + " Geräte gefunden");
             }
         }
     };
@@ -50,32 +60,23 @@ public class DiscoveryView extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_discovery);
 
+        statusTextView = findViewById(R.id.discovery_status);
         deviceList = findViewById(R.id.device_list);
         deviceList.setLayoutManager(new LinearLayoutManager(this));
-
 
         bluetoothController = new BluetoothController(this);
         discoveredDevices = new ArrayList<>();
         adapter = new DeviceListAdapter(this, discoveredDevices);
         deviceList.setAdapter(adapter);
 
-
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothDevice.ACTION_FOUND);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
         registerReceiver(discoveryReceiver, filter);
 
         checkPermissionsAndStartDiscovery();
     }
-
-//    private void checkPermissionsAndStartDiscovery() {
-//        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-//                != PackageManager.PERMISSION_GRANTED) {
-//            ActivityCompat.requestPermissions(this,
-//                    new String[]{Manifest.permission.BLUETOOTH_SCAN},
-//                    1);
-//        } else {
-//            bluetoothController.startDiscovery();
-//        }
-//    }
 
     private void checkPermissionsAndStartDiscovery() {
         // Bluetooth aktiviert?
@@ -105,27 +106,22 @@ public class DiscoveryView extends AppCompatActivity {
             return;
         }
 
-        // Discovery starten und Status aktualisieren
-        TextView status = findViewById(R.id.discovery_status);
-        status.setText("Suche nach Geräten...");
-
+        // Discovery starten
+        statusTextView.setText("Starte Suche...");
         bluetoothController.startDiscovery();
     }
 
     private void updateDeviceList() {
         runOnUiThread(() -> {
-            if (adapter == null) {
-                adapter = new DeviceListAdapter(this, discoveredDevices);
-                deviceList.setAdapter(adapter);
-                deviceList.setLayoutManager(new LinearLayoutManager(this));
-            } else {
-                adapter.notifyDataSetChanged();
-            }
-        });    }
+            Log.d(TAG, "Updating device list with " + discoveredDevices.size() + " devices");
+            adapter.notifyDataSetChanged();
+        });
+    }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        bluetoothController.stopDiscovery();
         unregisterReceiver(discoveryReceiver);
     }
 
@@ -144,6 +140,7 @@ public class DiscoveryView extends AppCompatActivity {
                 checkPermissionsAndStartDiscovery();
             } else {
                 Toast.makeText(this, "Benötigte Berechtigungen wurden nicht erteilt", Toast.LENGTH_SHORT).show();
+                statusTextView.setText("Fehler: Berechtigungen fehlen");
             }
         }
     }
@@ -156,6 +153,7 @@ public class DiscoveryView extends AppCompatActivity {
                 checkPermissionsAndStartDiscovery();
             } else {
                 Toast.makeText(this, "Bluetooth muss aktiviert sein", Toast.LENGTH_SHORT).show();
+                statusTextView.setText("Fehler: Bluetooth nicht aktiviert");
             }
         }
     }

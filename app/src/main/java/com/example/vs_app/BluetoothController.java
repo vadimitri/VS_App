@@ -34,15 +34,48 @@ public class BluetoothController {
         void onBluetoothNotAvailable();
     }
 
-    public BluetoothController(Context context, BluetoothCallback callback) {
+    public BluetoothController(Context context) {
         this.context = context;
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.groupManager = GroupManager.getInstance();
         this.isRunning = new AtomicBoolean(false);
-        this.bluetoothCallback = callback;
 
         if (bluetoothAdapter == null) {
+            Log.e(TAG, "Bluetooth is not available on this device");
+        }
+    }
+
+    public BluetoothController(Context context, BluetoothCallback callback) {
+        this(context);
+        this.bluetoothCallback = callback;
+
+        if (bluetoothAdapter == null && bluetoothCallback != null) {
             mainHandler.post(() -> bluetoothCallback.onBluetoothNotAvailable());
         }
     }
+
+    public BluetoothAdapter getBluetoothAdapter() {
+        return bluetoothAdapter;
+    }
+
+    @SuppressLint("MissingPermission")
+    public void startDiscovery() {
+        if (bluetoothAdapter != null) {
+            Log.d(TAG, "Starting Bluetooth discovery");
+            if (bluetoothAdapter.isDiscovering()) {
+                bluetoothAdapter.cancelDiscovery();
+            }
+            bluetoothAdapter.startDiscovery();
+        } else {
+            Log.e(TAG, "Cannot start discovery - Bluetooth adapter is null");
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    public void stopDiscovery() {
+        if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
+            bluetoothAdapter.cancelDiscovery();
+        }
+    }
+}
