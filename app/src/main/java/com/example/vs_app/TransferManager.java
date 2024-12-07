@@ -1,37 +1,36 @@
 package com.example.vs_app;
 
-// TransferManager.java
-
-import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
-import android.content.pm.PackageManager;
+import android.media.MediaScannerConnection;
 import android.util.Log;
-import android.Manifest;
-import androidx.core.app.ActivityCompat;
-
-import androidx.core.app.ActivityCompat;
-
-import java.io.*;
-import java.util.concurrent.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TransferManager {
     private static final String TAG = "TransferManager";
-    private static final int REQUEST_BLUETOOTH_CONNECT_PERMISSION = 1;
+    private static final int BUFFER_SIZE = 8192;
+    private static final int HEADER_SIZE = 8;
     private static TransferManager instance;
-    private final ExecutorService transferExecutor;
-    private final Map<BluetoothDevice, TransferStatus> transferStatuses;
-    private final BlockingQueue<File> transferQueue;
-
+    private final CopyOnWriteArrayList<BluetoothSocket> sockets;
+    private final ExecutorService executor;
+    private final AtomicBoolean isRunning;
+    private Context applicationContext;
+    private GossipController gossipController;
+    private boolean isInitialized = false;
 
     private TransferManager() {
-        transferExecutor = Executors.newCachedThreadPool();
-        transferStatuses = new ConcurrentHashMap<>();
-        transferQueue = new LinkedBlockingQueue<>();
+        this.sockets = new CopyOnWriteArrayList<>();
+        this.executor = Executors.newCachedThreadPool();
+        this.isRunning = new AtomicBoolean(true);
     }
 
     public static synchronized TransferManager getInstance() {
@@ -41,170 +40,148 @@ public class TransferManager {
         return instance;
     }
 
-    public void queueForTransfer(File file) {
-        transferQueue.offer(file);
-        processQueue();
-    }
-
-    public void acceptTransfer(BluetoothSocket socket) {
-        transferExecutor.execute(new ReceiveTask(socket));
-    }
-
-    public void updateTransferStatus(BluetoothDevice device) {
-        TransferStatus status = transferStatuses.get(device);
-        if (status != null) {
-            // Überprüfe und aktualisiere den Transfer-Status
-            status.checkProgress();
+    public void initialize(Context context) {
+        if (!isInitialized) {
+            this.applicationContext = context.getApplicationContext();
+            this.gossipController = GossipController.getInstance(context);
+            isInitialized = true;
         }
     }
 
-    public int getTransferProgress(BluetoothDevice device) {
-        TransferStatus status = transferStatuses.get(device);
-        return status != null ? status.getProgress() : 0;
+    public void addSocket(BluetoothSocket socket) {
+        checkInitialization();
+        if (!sockets.contains(socket)) {
+            sockets.add(socket);
+            startListening(socket);
+            updateDeviceStatus(socket.getRemoteDevice(), GossipController.TransferStatus.CONNECTING);
+        }
     }
 
-    private void processQueue() {
-        transferExecutor.execute(() -> {
-            while (!transferQueue.isEmpty()) {
-                File file = transferQueue.poll();
-                if (file != null) {
-                    for (BluetoothDevice device : GroupManager.getInstance().getGroupMembers()) {
-                        sendFile(device, file);
+    private void startListening(final BluetoothSocket socket) {
+        executor.execute(() -> {
+            BluetoothDevice device = socket.getRemoteDevice();
+            updateDeviceStatus(device, GossipController.TransferStatus.CONNECTED);
+            
+            byte[] header = new byte[HEADER_SIZE];
+            while (isRunning.get() && socket.isConnected()) {
+                try {
+                    InputStream inputStream = socket.getInputStream();
+                    if (readExactly(inputStream, header) == HEADER_SIZE) {
+                        int dataSize = parseHeader(header);
+                        if (dataSize > 0) {
+                            updateDeviceStatus(device, GossipController.TransferStatus.TRANSFERRING);
+                            byte[] data = new byte[dataSize];
+                            if (readExactly(inputStream, data) == dataSize) {
+                                handleReceivedData(data);
+                                updateDeviceStatus(device, GossipController.TransferStatus.COMPLETED);
+                            }
+                        }
                     }
+                } catch (IOException e) {
+                    Log.e(TAG, "Error reading from socket: " + e.getMessage());
+                    updateDeviceStatus(device, GossipController.TransferStatus.ERROR);
+                    removeSocket(socket);
+                    break;
                 }
             }
         });
     }
 
-    @SuppressLint("MissingPermission")
-    private void sendFile(BluetoothDevice device, File file) {
-        try {
-            @SuppressLint("MissingPermission") BluetoothSocket socket = device.createRfcommSocketToServiceRecord(BluetoothController.APP_UUID);
-            transferExecutor.execute(new SendTask(socket, file));
+    private void updateDeviceStatus(BluetoothDevice device, GossipController.TransferStatus status) {
+        if (gossipController != null) {
+            gossipController.setTransferStatus(device, status);
+        }
+    }
+
+    private int readExactly(InputStream inputStream, byte[] buffer) throws IOException {
+        int totalRead = 0;
+        while (totalRead < buffer.length) {
+            int read = inputStream.read(buffer, totalRead, buffer.length - totalRead);
+            if (read == -1) {
+                break;
+            }
+            totalRead += read;
+        }
+        return totalRead;
+    }
+
+    private int parseHeader(byte[] header) {
+        return (header[0] & 0xFF) << 24 | 
+               (header[1] & 0xFF) << 16 | 
+               (header[2] & 0xFF) << 8  | 
+               (header[3] & 0xFF);
+    }
+
+    private void createHeader(byte[] header, int size) {
+        header[0] = (byte) (size >> 24);
+        header[1] = (byte) (size >> 16);
+        header[2] = (byte) (size >> 8);
+        header[3] = (byte) size;
+    }
+
+    private void handleReceivedData(byte[] data) {
+        File receivedFile = MediaManager.createReceivedFile("photo.jpg");
+        try (FileOutputStream fos = new FileOutputStream(receivedFile)) {
+            fos.write(data);
+            fos.flush();
+            
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                new String[]{receivedFile.getPath()},
+                new String[]{"image/jpeg"},
+                null
+            );
         } catch (IOException e) {
-            Log.e(TAG, "Error creating socket for device: " + device.getName(), e);
+            Log.e(TAG, "Failed to save received file: " + e.getMessage());
         }
     }
 
-    private class SendTask implements Runnable {
-        private final BluetoothSocket socket;
-        private final File file;
-
-        SendTask(BluetoothSocket socket, File file) {
-            this.socket = socket;
-            this.file = file;
-        }
-
-        @SuppressLint("MissingPermission")
-        @Override
-        public void run() {
-            try {
-
-                socket.connect();
-
-                OutputStream outputStream = socket.getOutputStream();
-                DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
-
-                // Sende Datei-Metadaten
-                dataOutputStream.writeUTF(file.getName());
-                dataOutputStream.writeLong(file.length());
-
-                // Sende Dateiinhalt
-                FileInputStream fileInputStream = new FileInputStream(file);
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                long totalBytesRead = 0;
-
-                while ((bytesRead = fileInputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                    updateProgress(socket.getRemoteDevice(),
-                            (int)((totalBytesRead * 100) / file.length()));
-                }
-
-                fileInputStream.close();
-                socket.close();
-            }  catch (IOException e) {
-                Log.e(TAG, "Error connecting to socket", e);
-                try {
-                    socket.close();
-                } catch (IOException closeException) {
-                    Log.e(TAG, "Could not close socket", closeException);
-                }
-            }
+    public void sendPhoto(BluetoothSocket socket, byte[] photoData) {
+        checkInitialization();
+        BluetoothDevice device = socket.getRemoteDevice();
+        try {
+            updateDeviceStatus(device, GossipController.TransferStatus.TRANSFERRING);
+            
+            OutputStream outputStream = socket.getOutputStream();
+            byte[] header = new byte[HEADER_SIZE];
+            createHeader(header, photoData.length);
+            outputStream.write(header);
+            outputStream.write(photoData);
+            outputStream.flush();
+            
+            updateDeviceStatus(device, GossipController.TransferStatus.COMPLETED);
+            Log.d(TAG, "Photo sent successfully: " + photoData.length + " bytes");
+        } catch (IOException e) {
+            Log.e(TAG, "Error sending photo: " + e.getMessage());
+            updateDeviceStatus(device, GossipController.TransferStatus.ERROR);
+            removeSocket(socket);
         }
     }
 
-    private class ReceiveTask implements Runnable {
-        private final BluetoothSocket socket;
-
-
-        ReceiveTask(BluetoothSocket socket) {
-            this.socket = socket;
-        }
-
-        @Override
-        public void run() {
-            try {
-                InputStream inputStream = socket.getInputStream();
-                DataInputStream dataInputStream = new DataInputStream(inputStream);
-
-                // Lese Datei-Metadaten
-                String fileName = dataInputStream.readUTF();
-                long fileSize = dataInputStream.readLong();
-
-                // Erstelle Ausgabedatei
-                BluetoothDevice sender = socket.getRemoteDevice();
-                @SuppressLint("MissingPermission") File outputFile = MediaManager.createReceivedFile(
-                        sender.getName() + "_" + fileName
-                );                FileOutputStream fileOutputStream = new FileOutputStream(outputFile);
-
-                // Empfange Dateiinhalt
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                long totalBytesRead = 0;
-
-                while (totalBytesRead < fileSize &&
-                        (bytesRead = inputStream.read(buffer)) != -1) {
-                    fileOutputStream.write(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                    updateProgress(socket.getRemoteDevice(),
-                            (int)((totalBytesRead * 100) / fileSize));
-                }
-
-                fileOutputStream.close();
-                socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error receiving file", e);
-            }
+    private void checkInitialization() {
+        if (!isInitialized) {
+            throw new IllegalStateException("TransferManager must be initialized before use");
         }
     }
 
-    private void updateProgress(BluetoothDevice device, int progress) {
-        TransferStatus status = transferStatuses.computeIfAbsent(device,
-                k -> new TransferStatus());
-        status.setProgress(progress);
+    public void removeSocket(BluetoothSocket socket) {
+        BluetoothDevice device = socket.getRemoteDevice();
+        updateDeviceStatus(device, GossipController.TransferStatus.IDLE);
+        sockets.remove(socket);
+        try {
+            socket.close();
+        } catch (IOException e) {
+            Log.e(TAG, "Error closing socket: " + e.getMessage());
+        }
     }
 
-    private static class TransferStatus {
-        private volatile int progress;
-        private long lastUpdate;
-
-        public void setProgress(int progress) {
-            this.progress = progress;
-            this.lastUpdate = System.currentTimeMillis();
+    public void cleanup() {
+        isRunning.set(false);
+        executor.shutdown();
+        for (BluetoothSocket socket : sockets) {
+            removeSocket(socket);
         }
-
-        public int getProgress() {
-            return progress;
-        }
-
-        public void checkProgress() {
-            // Überprüft, ob der Transfer noch aktiv ist
-            if (progress < 100 &&
-                    System.currentTimeMillis() - lastUpdate > 30000) { // 30 Sekunden Timeout
-                progress = -1; // Markiere als fehlgeschlagen
-            }
-        }
+        sockets.clear();
+        isInitialized = false;
     }
 }
