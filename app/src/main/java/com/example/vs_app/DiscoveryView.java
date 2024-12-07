@@ -11,6 +11,8 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -51,6 +53,10 @@ public class DiscoveryView extends AppCompatActivity {
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
                 Log.d(TAG, "Discovery finished");
                 statusTextView.setText("Suche beendet - " + discoveredDevices.size() + " Geräte gefunden");
+            } else if (BluetoothDevice.ACTION_NAME_CHANGED.equals(action)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                Log.d(TAG, "Device name changed: " + device.getName());
+                updateDeviceList();
             }
         }
     };
@@ -74,55 +80,14 @@ public class DiscoveryView extends AppCompatActivity {
         filter.addAction(BluetoothDevice.ACTION_FOUND);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        filter.addAction(BluetoothDevice.ACTION_NAME_CHANGED);
         registerReceiver(discoveryReceiver, filter);
 
         checkPermissionsAndStartDiscovery();
-    }
-
-    private void checkPermissionsAndStartDiscovery() {
-        // Überprüfe zuerst Bluetooth
-        if (bluetoothController.getBluetoothAdapter() == null) {
-            statusTextView.setText("Fehler: Bluetooth nicht verfügbar");
-            return;
-        }
-
-        if (!bluetoothController.getBluetoothAdapter().isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-            return;
-        }
-
-        // Überprüfe und fordere Berechtigungen an
-        ArrayList<String> permissions = new ArrayList<>();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN);
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
-        } else {
-            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
-
-        boolean allPermissionsGranted = true;
-        for (String permission : permissions) {
-            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allPermissionsGranted = false;
-                break;
-            }
-        }
-
-        if (!allPermissionsGranted) {
-            Log.d(TAG, "Requesting permissions: " + permissions);
-            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), PERMISSION_REQUEST_CODE);
-        } else {
-            startDiscovery();
-        }
-    }
-
-    private void startDiscovery() {
-        statusTextView.setText("Starte Suche...");
-        Log.d(TAG, "Starting discovery");
-        bluetoothController.startDiscovery();
+        
+        // Mache das eigene Gerät sichtbar und setze einen Namen
+        bluetoothController.setDeviceName("VS_App_" + Build.MODEL);
+        bluetoothController.makeDiscoverable();
     }
 
     private void updateDeviceList() {
@@ -171,5 +136,11 @@ public class DiscoveryView extends AppCompatActivity {
                 Toast.makeText(this, "Bluetooth muss aktiviert sein", Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    private void startDiscovery() {
+        statusTextView.setText("Starte Suche...");
+        Log.d(TAG, "Starting discovery");
+        bluetoothController.startDiscovery();
     }
 }
