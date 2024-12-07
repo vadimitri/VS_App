@@ -1,7 +1,5 @@
 package com.example.vs_app;
 
-// GossipController.java
-
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
@@ -29,7 +27,6 @@ public class GossipController {
     }
 
     public void updateGroupMembers(List<BluetoothDevice> members) {
-        // Update transfer status for all members
         for (BluetoothDevice device : members) {
             transferManager.updateTransferStatus(device);
         }

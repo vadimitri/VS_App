@@ -2,7 +2,6 @@ package com.example.vs_app;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -31,18 +30,18 @@ public class GroupManager {
     public void addGroupMember(BluetoothDevice device) {
         if (device != null) {
             groupMembers.add(device);
-            notifyGroupUpdate();
+            updateGossipController();
         }
     }
 
     public void removeGroupMember(BluetoothDevice device) {
         if (device != null) {
             groupMembers.remove(device);
-            notifyGroupUpdate();
+            updateGossipController();
         }
     }
 
-    private void notifyGroupUpdate() {
+    private void updateGossipController() {
         if (context != null) {
             GossipController.getInstance(context).updateGroupMembers(new ArrayList<>(groupMembers));
         }
@@ -58,6 +57,6 @@ public class GroupManager {
 
     public void clearGroup() {
         groupMembers.clear();
-        notifyGroupUpdate();
+        updateGossipController();
     }
 }
