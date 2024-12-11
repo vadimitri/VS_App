@@ -1,11 +1,14 @@
-package com.example.vs_app;
+package com.example.vs_app.view;
 
 import android.os.Bundle;
 import android.widget.ListView;
 import android.widget.ArrayAdapter;
 import androidx.appcompat.app.AppCompatActivity;
 import android.bluetooth.BluetoothDevice;
-import android.widget.Toast;
+
+import com.example.vs_app.R;
+import com.example.vs_app.manager.GroupManager;
+
 import java.util.List;
 
 public class GroupView extends AppCompatActivity {

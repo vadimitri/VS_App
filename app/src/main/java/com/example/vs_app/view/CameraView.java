@@ -1,14 +1,15 @@
-package com.example.vs_app;
+package com.example.vs_app.view;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.*;
-import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
-import androidx.core.content.ContextCompat;
+
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.Toast;
-import com.google.common.util.concurrent.ListenableFuture;
+
+import com.example.vs_app.R;
+import com.example.vs_app.controller.CameraController;
+import com.example.vs_app.manager.GroupManager;
 
 public class CameraView extends AppCompatActivity {
     private PreviewView previewView;

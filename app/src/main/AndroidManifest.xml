@@ -59,7 +59,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".CameraView"
+            android:name=".view.CameraView"
             android:screenOrientation="portrait"
             android:exported="false"
             android:theme="@style/Theme.VS_App.NoActionBar">
@@ -67,14 +67,14 @@
 
         <!-- Discovery Activity -->
         <activity
-            android:name=".DiscoveryView"
+            android:name=".view.DiscoveryView"
             android:exported="false"
             android:label="@string/title_activity_discovery">
         </activity>
 
         <!-- Group Activity -->
         <activity
-            android:name=".GroupView"
+            android:name=".view.GroupView"
             android:exported="false"
             android:label="@string/title_activity_group">
         </activity>

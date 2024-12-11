@@ -1,4 +1,4 @@
-package com.example.vs_app;
+package com.example.vs_app.handler;
 
 // ErrorHandler.java
 import android.content.Context;
@@ -7,6 +7,9 @@ import androidx.appcompat.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.os.Environment;
 import android.os.StatFs;
+
+import com.example.vs_app.MainActivity;
+import com.example.vs_app.StorageError;
 
 public class ErrorHandler {
     private static final long MIN_STORAGE_SPACE = 50 * 1024 * 1024; // 50MB

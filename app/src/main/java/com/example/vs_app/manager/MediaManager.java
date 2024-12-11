@@ -1,12 +1,11 @@
-package com.example.vs_app;
+package com.example.vs_app.manager;
 
 import android.content.Context;
-import android.content.Intent;
 import android.media.MediaScannerConnection;
-import android.net.Uri;
 import android.util.Log;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;

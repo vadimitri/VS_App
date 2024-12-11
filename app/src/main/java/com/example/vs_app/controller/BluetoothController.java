@@ -1,17 +1,16 @@
-package com.example.vs_app;
+package com.example.vs_app.controller;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothServerSocket;
-import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import java.io.IOException;
+import com.example.vs_app.manager.GroupManager;
+
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -25,7 +24,7 @@ public class BluetoothController {
     private final BluetoothAdapter bluetoothAdapter;
     private final Context context;
     private final Handler mainHandler;
-    private AcceptThread acceptThread;
+    //private AcceptThread acceptThread;
     private final GroupManager groupManager;
     private final AtomicBoolean isRunning;
     private BluetoothCallback bluetoothCallback;

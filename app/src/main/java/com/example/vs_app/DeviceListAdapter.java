@@ -14,6 +14,9 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.vs_app.manager.GroupManager;
+import com.example.vs_app.view.DiscoveryView;
+
 import java.util.List;
 
 public class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolder> {

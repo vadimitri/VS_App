@@ -1,25 +1,24 @@
-package com.example.vs_app;
+package com.example.vs_app.view;
 
 import android.Manifest;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.vs_app.DeviceListAdapter;
+import com.example.vs_app.handler.PermissionHandler;
+import com.example.vs_app.R;
+import com.example.vs_app.controller.BluetoothController;
+import com.example.vs_app.manager.GroupManager;
+
 import java.util.ArrayList;
 
 public class DiscoveryView extends AppCompatActivity {

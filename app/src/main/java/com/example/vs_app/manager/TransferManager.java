@@ -1,10 +1,13 @@
-package com.example.vs_app;
+package com.example.vs_app.manager;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.media.MediaScannerConnection;
 import android.util.Log;
+
+import com.example.vs_app.controller.GossipController;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;

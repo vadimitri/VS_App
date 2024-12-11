@@ -1,10 +1,11 @@
-package com.example.vs_app;
+package com.example.vs_app.handler;
 
 // ExceptionHandler.java
 import android.content.Context;
 import android.util.Log;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+
 import com.example.vs_app.BuildConfig;
 
 public class ExceptionHandler implements Thread.UncaughtExceptionHandler {

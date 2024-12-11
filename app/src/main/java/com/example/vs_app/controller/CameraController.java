@@ -1,4 +1,4 @@
-package com.example.vs_app;
+package com.example.vs_app.controller;
 
 import android.content.Context;
 import android.util.Log;
@@ -9,6 +9,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
+
+import com.example.vs_app.manager.MediaManager;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
